@@ -75,13 +75,22 @@ extern "C" {
 
   
 /**
+ * @name DS18 pins  OW_BUS_0
+ * @{
+ */
+#define DS18_PARAM_PIN  0xD7
+#define DS18_PARAM_PULL   (GPIO_IN_PU)
+  //#define DS18_PARAM_PULL   (GPIO_IN)  
+  
+  
+/**
  * @name xtimer configuration values
  * @{
  */
 #define XTIMER_DEV          TIMER_DEV(0)
 #define XTIMER_CHAN         (0)
 #define XTIMER_WIDTH        (16)
-  //#define XTIMER_HZ           (125000UL)
+//#define XTIMER_HZ           (125000UL)
 #define XTIMER_HZ                   (62500UL)
 //#define XTIMER_BACKOFF              (40)
 

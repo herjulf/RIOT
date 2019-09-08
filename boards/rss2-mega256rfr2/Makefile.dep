@@ -1,1 +1,3 @@
 USEMODULE += boards_common_atmega
+USEMODULE += 24mac
+USEMODULE += at86rf2xx
