@@ -99,12 +99,16 @@ extern "C" {
 
 /**
  * @name    Nanocoap specific CoAP method flags used in coap_handlers array
+ * @anchor  nanocoap_method_flags
  * @{
  */
-#define COAP_GET                (0x1)
-#define COAP_POST               (0x2)
-#define COAP_PUT                (0x4)
-#define COAP_DELETE             (0x8)
+#define COAP_GET                (0x01)
+#define COAP_POST               (0x02)
+#define COAP_PUT                (0x04)
+#define COAP_DELETE             (0x08)
+#define COAP_FETCH              (0x10)
+#define COAP_PATCH              (0x20)
+#define COAP_IPATCH             (0x40)
 #define COAP_MATCH_SUBTREE      (0x8000) /**< Path is considered as a prefix
                                               when matching */
 /** @} */
@@ -198,11 +202,18 @@ typedef struct {
 typedef ssize_t (*coap_handler_t)(coap_pkt_t *pkt, uint8_t *buf, size_t len, void *context);
 
 /**
+ * @brief   Method flag type
+ *
+ * Must be large enough to contain all @ref nanocoap_method_flags "CoAP method flags"
+ */
+typedef uint16_t coap_method_flags_t;
+
+/**
  * @brief   Type for CoAP resource entry
  */
 typedef struct {
     const char *path;               /**< URI path of resource               */
-    unsigned methods;               /**< OR'ed methods this resource allows */
+    coap_method_flags_t methods;    /**< OR'ed methods this resource allows */
     coap_handler_t handler;         /**< ptr to resource handler            */
     void *context;                  /**< ptr to user defined context data   */
 } coap_resource_t;
@@ -325,7 +336,7 @@ static inline unsigned coap_get_id(coap_pkt_t *pkt)
  *
  * @returns     length of token in the given message (0-8 byte)
  */
-static inline unsigned coap_get_token_len(coap_pkt_t *pkt)
+static inline unsigned coap_get_token_len(const coap_pkt_t *pkt)
 {
     return (pkt->hdr->ver_t_tkl & 0xf);
 }
@@ -337,7 +348,7 @@ static inline unsigned coap_get_token_len(coap_pkt_t *pkt)
  *
  * @returns     total header length
  */
-static inline unsigned coap_get_total_hdr_len(coap_pkt_t *pkt)
+static inline unsigned coap_get_total_hdr_len(const coap_pkt_t *pkt)
 {
     return sizeof(coap_hdr_t) + coap_get_token_len(pkt);
 }
@@ -530,6 +541,38 @@ static inline ssize_t coap_get_uri_query(const coap_pkt_t *pkt, uint8_t *target)
     return coap_opt_get_string(pkt, COAP_OPT_URI_QUERY, target,
                                NANOCOAP_URI_MAX, '&');
 }
+
+/**
+ * @brief   Iterate over a packet's options
+ *
+ * To start iteration from the first option, set @p init_opt to true. To start
+ * iteration from a specific option, set @p init_opt to false, set
+ * @p opt->offset to the offset of the desired option from pkt->hdr, and
+ * @p opt->opt_num as required. See below for how @p opt->opt_num is modified.
+ *
+ * With each invocation, this function returns the length of the option value
+ * and sets @p value to point to the start of the value. The value for
+ * @p opt->opt_num is increased by the delta in the option number value over
+ * the preceding option in the packet. So, @p opt->opt_num is accurate if
+ * iteration started with the first option. Otherwise, it is useful for
+ * identification of repeated options. Finally, @p opt->offset is set to the
+ * offset for any following option, to prepare for the next iteration.
+ *
+ * The end of the options is indicated by a -ENOENT return value. In this case
+ * @p value and @p opt are unchanged from their input values.
+ *
+ * @param[in]     pkt         packet to read from
+ * @param[in,out] opt         option attributes; read on input if @p init_opt
+ *                            is false
+ * @param[out]    value       start of the option value
+ * @param[in]     init_opt    true to retrieve first option; false to retrieve
+ *                            option at opt->offset
+ *
+ * @return        length of option value
+ * @return        -ENOENT if option not found
+ */
+ssize_t coap_opt_get_next(const coap_pkt_t *pkt, coap_optpos_t *opt,
+                          uint8_t **value, bool init_opt);
 /**@}*/
 
 
@@ -1153,7 +1196,7 @@ ssize_t coap_handle_req(coap_pkt_t *pkt, uint8_t *resp_buf, unsigned resp_buf_le
  *
  * @returns     bit field corresponding to the given request method
  */
-static inline unsigned coap_method2flag(unsigned code)
+static inline coap_method_flags_t coap_method2flag(unsigned code)
 {
     return (1 << (code - 1));
 }
