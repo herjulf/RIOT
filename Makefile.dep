@@ -212,6 +212,14 @@ endif
 
 ifneq (,$(filter gnrc_sixlowpan_frag,$(USEMODULE)))
   USEMODULE += gnrc_sixlowpan
+  USEMODULE += gnrc_sixlowpan_frag_rb
+endif
+
+ifneq (,$(filter gnrc_sixlowpan_frag_rb,$(USEMODULE)))
+  USEMODULE += xtimer
+endif
+
+ifneq (,$(filter gnrc_sixlowpan_frag_vrb,$(USEMODULE)))
   USEMODULE += xtimer
 endif
 
@@ -825,6 +833,7 @@ endif
 
 ifneq (,$(filter skald,$(USEMODULE)))
   FEATURES_REQUIRED += radio_nrfble
+  USEMODULE += nrfble
   USEMODULE += xtimer
   USEMODULE += random
 endif

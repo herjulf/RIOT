@@ -1,3 +1,3 @@
-MODULE = boards_common_stm32f103c8
+MODULE := gnrc_sixlowpan_frag_rb
 
 include $(RIOTBASE)/Makefile.base
