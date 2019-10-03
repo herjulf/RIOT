@@ -1,3 +1,7 @@
+ifeq (,$(CPU_MODEL))
+  $(error CPU_MODEL must have been defined by the board/cpu Makefile.features)
+endif
+
 # Target triple for the build. Use arm-none-eabi if you are unsure.
 export TARGET_ARCH ?= arm-none-eabi
 
@@ -39,9 +43,6 @@ export USEMODULE += cortexm_common_periph
 # all cortex MCU's use newlib as libc
 export USEMODULE += newlib
 
-# set default for CPU_MODEL
-export CPU_MODEL ?= $(CPU)
-
 
 # extract version inside the first parentheses
 ARM_GCC_VERSION = $(shell $(TARGET_ARCH)-gcc --version | sed -n '1 s/[^(]*(\([^\)]*\)).*/\1/p')
@@ -81,10 +82,8 @@ endif
 endif
 endif
 
-MODEL = $(shell echo $(CPU_MODEL) | tr 'a-z' 'A-Z')
-CFLAGS += -DCPU_MODEL_$(MODEL)
-ARCH = $(shell echo $(CPU_ARCH) | tr 'a-z-' 'A-Z_')
-CFLAGS += -DCPU_ARCH_$(ARCH)
+CFLAGS += -DCPU_MODEL_$(call uppercase_and_underscore,$(CPU_MODEL))
+CFLAGS += -DCPU_ARCH_$(call uppercase_and_underscore,$(CPU_ARCH))
 
 # set the compiler specific CPU and FPU options
 ifneq (,$(filter $(CPU_ARCH),cortex-m4f cortex-m7))
