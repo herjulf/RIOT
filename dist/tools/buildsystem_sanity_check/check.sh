@@ -155,9 +155,6 @@ check_cpu_cpu_model_defined_in_makefile_features() {
     pathspec+=(':!boards/**/Makefile.features')
     pathspec+=(':!cpu/**/Makefile.features')
 
-    # Currently blacklist this non migrated file for CPU_MODEL
-    pathspec+=(':!boards/slwstk6000b/Makefile.include')
-
     git -C "${RIOTBASE}" grep "${patterns[@]}" -- "${pathspec[@]}" \
             | error_with_message 'CPU and CPU_MODEL definition must be done by board/BOARD/Makefile.features, board/common/**/Makefile.features or cpu/CPU/Makefile.features'
 }
@@ -175,6 +172,20 @@ check_not_setting_board_equal() {
         | error_with_message 'Applications Makefile should use "BOARD ?="'
 }
 
+# Examples must not provide BOARD_INSUFFICIENT_MEMORY in Makefile, but in
+# Makefile.ci
+check_board_insufficient_memory_not_in_makefile() {
+    local patterns=()
+    local pathspec=()
+
+    patterns+=(-e '^[[:space:]]*BOARD_INSUFFICIENT_MEMORY[[:space:]:+]*=')
+
+    pathspec+=('**/Makefile')
+
+    git -C "${RIOTBASE}" grep "${patterns[@]}" -- "${pathspec[@]}" \
+        | error_with_message 'Move BOARD_INSUFFICIENT_MEMORY to Makefile.ci'
+}
+
 error_on_input() {
     ! grep ''
 }
@@ -186,6 +197,7 @@ all_checks() {
     check_board_do_not_include_cpu_features_dep
     check_cpu_cpu_model_defined_in_makefile_features
     check_not_setting_board_equal
+    check_board_insufficient_memory_not_in_makefile
 }
 
 main() {

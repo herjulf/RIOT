@@ -19,32 +19,27 @@
  * provides high and low level interfaces to CoAP options, including Block.
  *
  * nanocoap includes the core structs to store message information. It also
- * also provides support for sending and receiving messages, such as
- * coap_parse() to read an incoming message.
+ * provides helper functions for use before sending and after receiving a
+ * message, such as coap_parse() to read an incoming message.
  *
- * The documentation here mostly categorizes and lists the contents of
- * nanocoap. To use nanocoap in an application, see the APIs that are built
- * with it: [nanocoap sock](group__net__nanosock.html) and
- * [gcoap](group__net__gcoap.html).
+ * ## Application APIs
  *
- * ## Option APIs
+ * This page provides reference documentation for the contents of nanocoap. To
+ * use nanocoap in an application, see the functional APIs that are built with
+ * it. [nanocoap sock](group__net__nanosock.html) is for a targeted client or
+ * server with lesser resource requirements, and [gcoap](group__net__gcoap.html)
+ * provides a more featureful messaging hub.
+ *
+ * ### Option APIs
  *
  * For both server responses and client requests, CoAP uses an Option mechanism
  * to encode message metadata that is not required for each message. For
  * example, the resource URI path is required only for a request, and is encoded
  * as the Uri-Path option.
  *
- * nanocoap provides two APIs for writing CoAP options:
- *
- * - **Buffer API** requires only a reference to the buffer for the message.
- * However, the caller must provide the last option number written as well as
- * the buffer position. The caller is primarily responsible for tracking and
- * managing the space remaining in the buffer.
- *
- * - **Packet API** uses a coap_pkt_t struct to conveniently track each
- * option as it is written and prepare for any payload. The caller must monitor
- * space remaining in the buffer; however, the API *will not* write past the
- * end of the buffer, and returns -ENOSPC when it is full.
+ * nanocoap sock uses the simpler Buffer API, described in the section
+ * _Options Write Buffer API_. gcoap uses the more convenient Packet API,
+ * described in the section _Options Write Packet API_.
  *
  * For either API, the caller *must* write options in order by option number
  * (see "CoAP option numbers" in [CoAP defines](group__net__coap.html)).
@@ -718,6 +713,26 @@ size_t coap_blockwise_put_bytes(coap_block_slicer_t *slicer, uint8_t *bufpos,
 size_t coap_blockwise_put_char(coap_block_slicer_t *slicer, uint8_t *bufpos, char c);
 
 /**
+ * @brief    Block option getter
+ *
+ * This function gets a CoAP packet's block option and parses it into a helper
+ * structure.
+ *
+ * If no block option is present in @p pkt, the values in @p block will be
+ * initialized with zero. That implies both block->offset and block->more are
+ * also valid in that case, as packet with offset==0 and more==0 means it contains
+ * all the payload for the corresponding request.
+ *
+ * @param[in]   pkt     pkt to work on
+ * @param[out]  block   ptr to preallocated coap_block1_t structure
+ * @param[in]   option  block1 or block2
+ *
+ * @returns     0 if block option not present
+ * @returns     1 if structure has been filled
+ */
+int coap_get_block(coap_pkt_t *pkt, coap_block1_t *block, uint16_t option);
+
+/**
  * @brief    Block1 option getter
  *
  * This function gets a CoAP packet's block1 option and parses it into a helper
@@ -729,23 +744,29 @@ size_t coap_blockwise_put_char(coap_block_slicer_t *slicer, uint8_t *bufpos, cha
  * all the payload for the corresponding request.
  *
  * @param[in]   pkt     pkt to work on
- * @param[out]  block1  ptr to preallocated coap_block1_t structure
+ * @param[out]  block   ptr to preallocated coap_block1_t structure
  *
  * @returns     0 if block1 option not present
  * @returns     1 if structure has been filled
  */
-int coap_get_block1(coap_pkt_t *pkt, coap_block1_t *block1);
+static inline int coap_get_block1(coap_pkt_t *pkt, coap_block1_t *block)
+{
+    return coap_get_block(pkt, block, COAP_OPT_BLOCK1);
+}
 
 /**
  * @brief    Block2 option getter
  *
  * @param[in]   pkt     pkt to work on
- * @param[out]  block2  ptr to preallocated coap_block1_t structure
+ * @param[out]  block   ptr to preallocated coap_block1_t structure
  *
  * @returns     0 if block2 option not present
  * @returns     1 if structure has been filled
  */
-int coap_get_block2(coap_pkt_t *pkt, coap_block1_t *block2);
+static inline int coap_get_block2(coap_pkt_t *pkt, coap_block1_t *block)
+{
+    return coap_get_block(pkt, block, COAP_OPT_BLOCK2);
+}
 
 /**
  * @brief    Generic block option getter
@@ -779,7 +800,12 @@ static inline unsigned coap_szx2size(unsigned szx)
  * @name    Functions -- Options Write Packet API
  *
  * Use a coap_pkt_t struct to manage writing Options to the PDU.
+ *
+ * The caller must monitor space remaining in the buffer; however, the API
+ * *will not* write past the end of the buffer, and returns -ENOSPC when it is
+ * full.
  */
+/**@{*/
 /**
  * @brief   Add block option in descriptive use from a slicer object
  *
@@ -976,6 +1002,10 @@ ssize_t coap_opt_finish(coap_pkt_t *pkt, uint16_t flags);
  * @name    Functions -- Options Write Buffer API
  *
  * Write PDU Options directly to the array of bytes for a message.
+ *
+ * The caller must provide the last option number written as well as the buffer
+ * position. The caller is primarily responsible for tracking and managing the
+ * space remaining in the buffer.
  */
 /**@{*/
 /**
@@ -1039,17 +1069,18 @@ static inline size_t coap_opt_put_block2(uint8_t *buf, uint16_t lastonum,
 }
 
 /**
- * @brief   Insert block option into buffer from block struct
+ * @brief   Encode the given uint option into buffer
  *
- * @param[in]   buf         buffer to write to
- * @param[in]   lastonum    last option number (must be < @p option)
- * @param[in]   block       block option attribute struct
- * @param[in]   option      option number (block1 or block2)
+ * @param[out]  buf         buffer to write to
+ * @param[in]   lastonum    number of previous option (for delta calculation),
+ *                          or 0 for first option
+ * @param[in]   onum        number of option
+ * @param[in]   value       value to encode
  *
  * @returns     amount of bytes written to @p buf
  */
-size_t coap_opt_put_block_object(uint8_t *buf, uint16_t lastonum,
-                                 coap_block1_t *block, uint16_t option);
+size_t coap_opt_put_uint(uint8_t *buf, uint16_t lastonum, uint16_t onum,
+                         uint32_t value);
 
 /**
  * @brief   Insert block1 option into buffer in control usage
@@ -1063,7 +1094,8 @@ size_t coap_opt_put_block_object(uint8_t *buf, uint16_t lastonum,
 static inline size_t coap_opt_put_block1_control(uint8_t *buf, uint16_t lastonum,
                                                  coap_block1_t *block)
 {
-    return coap_opt_put_block_object(buf, lastonum, block, COAP_OPT_BLOCK1);
+    return coap_opt_put_uint(buf, lastonum, COAP_OPT_BLOCK1,
+                             (block->blknum << 4) | block->szx | (block->more ? 0x8 : 0));
 }
 
 /**
@@ -1080,8 +1112,9 @@ static inline size_t coap_opt_put_block1_control(uint8_t *buf, uint16_t lastonum
 static inline size_t coap_opt_put_block2_control(uint8_t *buf, uint16_t lastonum,
                                                  coap_block1_t *block)
 {
-    block->more = 0;
-    return coap_opt_put_block_object(buf, lastonum, block, COAP_OPT_BLOCK2);
+    /* block.more must be zero, so no need to 'or' it in */
+    return coap_opt_put_uint(buf, lastonum, COAP_OPT_BLOCK2,
+                             (block->blknum << 4) | block->szx);
 }
 
 /**
@@ -1216,7 +1249,12 @@ size_t coap_put_option(uint8_t *buf, uint16_t lastonum, uint16_t onum, const uin
  *
  * @returns     amount of bytes written to @p buf
  */
-size_t coap_put_option_block1(uint8_t *buf, uint16_t lastonum, unsigned blknum, unsigned szx, int more);
+static inline size_t coap_put_option_block1(uint8_t *buf, uint16_t lastonum,
+                                            unsigned blknum, unsigned szx, int more)
+{
+    return coap_opt_put_uint(buf, lastonum, COAP_OPT_BLOCK1,
+                             (blknum << 4) | szx | (more ? 0x8 : 0));
+}
 
 /**
  * @brief   Insert content type option into buffer
@@ -1228,7 +1266,11 @@ size_t coap_put_option_block1(uint8_t *buf, uint16_t lastonum, unsigned blknum, 
  *
  * @returns     amount of bytes written to @p buf
  */
-size_t coap_put_option_ct(uint8_t *buf, uint16_t lastonum, uint16_t content_type);
+static inline size_t coap_put_option_ct(uint8_t *buf, uint16_t lastonum,
+                                        uint16_t content_type)
+{
+    return coap_opt_put_uint(buf, lastonum, COAP_OPT_CONTENT_FORMAT, content_type);
+}
 /**@}*/
 
 

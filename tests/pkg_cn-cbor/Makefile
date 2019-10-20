@@ -6,8 +6,8 @@ BOARD_BLACKLIST :=  arduino-duemilanove \
                     arduino-nano \
                     arduino-uno \
                     chronos \
-                    jiminy-mega256rfr2 \
                     mega-xplained \
+                    microduino-corerf \
                     msb-430 \
                     msb-430h \
                     telosb \
