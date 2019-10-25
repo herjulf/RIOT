@@ -3,6 +3,7 @@ BOARD_INSUFFICIENT_MEMORY := \
     arduino-leonardo \
     arduino-nano \
     arduino-uno \
+    atmega328p \
     chronos \
     i-nucleo-lrwan1 \
     msb-430 \
@@ -14,6 +15,7 @@ BOARD_INSUFFICIENT_MEMORY := \
     nucleo-f334r8 \
     nucleo-l031k6 \
     nucleo-l053r8 \
+    stm32f030f4-demo \
     stm32f0discovery \
     stm32l0538-disco \
     #
