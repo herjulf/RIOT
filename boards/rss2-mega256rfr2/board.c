@@ -23,10 +23,29 @@
 #include "board.h"
 #include "cpu.h"
 
+#include "net/eui64.h"
+#include <string.h>
+#include <inttypes.h>
+#include "../../drivers/euimac/include/euimac_params.h"
+#include "euimac.h"
+
+extern eui64_t euimac;
+
 void led_init(void)
 {
     /* Ports Pins as Output */
     LED_PORT_DDR |= LED1_MASK | LED0_MASK;
     /* All LEDs OFF */
     LED_PORT |= (LED1_MASK | LED0_MASK);
+}
+
+void _euimac_init(void)
+{
+  euimac_t dev;
+  int result;
+
+  result = euimac_init(&dev, &euimac_params[0]);
+  if (result != EUIMAC_OK) {
+    puts("[Error] The given i2c is not enabled");
+  }
 }

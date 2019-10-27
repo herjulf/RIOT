@@ -23,10 +23,12 @@
 #include <string.h>
 #include <inttypes.h>
 #include "../../drivers/euimac/include/euimac_params.h"
+#include "net/eui64.h"
 //#include "euimac_params.h"
 #include "euimac.h"
 
-extern uint8_t eui64[8];
+
+extern eui64_t euimac;
 
 int main(void)
 {
@@ -43,7 +45,8 @@ int main(void)
         return 1;
     }
     else {
-      printf("EUI-64 MAC: %x-%x-%x-%x-%x-%x-%x-%x\n",
-	    eui64[0], eui64[1], eui64[2], eui64[3], eui64[4], eui64[5], eui64[6], eui64[7]);
+      printf("EUIMAC-64: %x-%x-%x-%x-%x-%x-%x-%x\n",
+	    euimac.uint8[0], euimac.uint8[1], euimac.uint8[2], euimac.uint8[3], euimac.uint8[4],
+	     euimac.uint8[5], euimac.uint8[6], euimac.uint8[7]);
     }
 }    

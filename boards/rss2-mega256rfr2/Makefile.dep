@@ -1,3 +1,3 @@
 USEMODULE += boards_common_atmega
 USEMODULE += euimac
-USEMODULE += at86rf2xx
+USEMODULE += at86rfr2
