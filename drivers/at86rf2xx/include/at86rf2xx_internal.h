@@ -104,7 +104,7 @@ uint8_t at86rf2xx_reg_read(const at86rf2xx_t *dev, uint8_t addr);
  */
 #if defined(MODULE_AT86RFA1) || defined(MODULE_AT86RFR2)
 static inline void at86rf2xx_reg_write(const at86rf2xx_t *dev, volatile uint8_t *addr,
-                         const uint8_t value) {
+                                       const uint8_t value) {
     (void) dev;
     *addr = value;
 }
@@ -122,7 +122,7 @@ void at86rf2xx_reg_write(const at86rf2xx_t *dev, uint8_t addr, uint8_t value);
  */
 #if defined(MODULE_AT86RFA1) || defined(MODULE_AT86RFR2)
 static inline void at86rf2xx_sram_read(const at86rf2xx_t *dev, uint8_t offset,
-                         uint8_t *data, size_t len) {
+                                       uint8_t *data, size_t len) {
     (void)dev;
     memcpy(data, (void*)(AT86RF2XX_REG__TRXFBST + offset), len);
 }
@@ -140,7 +140,7 @@ void at86rf2xx_sram_read(const at86rf2xx_t *dev, uint8_t offset,
  */
 #if defined(MODULE_AT86RFA1) || defined(MODULE_AT86RFR2)
 static inline void at86rf2xx_sram_write(const at86rf2xx_t *dev, uint8_t offset,
-                          const uint8_t *data, size_t len) {
+                                        const uint8_t *data, size_t len) {
     (void)dev;
     memcpy((void*)(AT86RF2XX_REG__TRXFBST + offset), data, len);
 }
