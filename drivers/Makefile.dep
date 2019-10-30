@@ -56,7 +56,6 @@ ifneq (,$(filter at86rf%,$(USEMODULE)))
     FEATURES_REQUIRED += periph_spi
   endif
 endif
-endif
 
 ifneq (,$(filter ata8520e,$(USEMODULE)))
   USEMODULE += xtimer
