@@ -96,7 +96,11 @@ int main(void)
         const at86rf2xx_params_t *p = &at86rf2xx_params[i];
         netdev_t *dev = (netdev_t *)(&devs[i]);
 
-        printf("Initializing AT86RF2xx radio at SPI_%d\n", p->spi);
+#if defined(MODULE_AT86RFA1) || defined(MODULE_AT86RFR2)
+	printf("Initializing AT86RF2xx radio \n");
+#else
+	printf("Initializing AT86RF2xx radio at SPI_%d\n", p->spi);
+#endif
         at86rf2xx_setup(&devs[i], p);
         dev->event_callback = _event_cb;
         if (dev->driver->init(dev) < 0) {
