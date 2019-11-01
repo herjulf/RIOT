@@ -8,7 +8,7 @@
  */
 
 /**
- * @ingroup     boards_jiminy-mega256rfr2
+ * @ingroup     boards_rss2-mega256rfr2
  * @{
  *
  * @file
@@ -17,6 +17,9 @@
  * @author      Josua Arndt <jarndt@ias.rwth-aachen.de>
  * @author      Steffen Robertz <steffen.robertz@rwth-aachen.de>
  * @author      Marian Buschsieweke <marian.buschsieweke@ovgu.de>
+ * @author      Robert Olsson <roolss@kth.se>
+ *
+ * This is based on  boards_jiminy-mega256rfr2
  */
 
 #ifndef PERIPH_CONF_H

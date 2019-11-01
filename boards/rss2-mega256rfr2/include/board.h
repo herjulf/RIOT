@@ -7,14 +7,17 @@
  */
 
 /**
- * @ingroup     boards_jiminy-mega256rfr2
+ * @ingroup     boards_rss2-mega256rfr2
  * @{
  *
  * @file
- * @brief       Board specific definitions for the Jiminy Mega 256rfr2 board.
+ * @brief       Board specific definitions for the rss2 256rfr2 board.
  *
  * @author      Josua Arndt <jarndt@ias.rwth-aachen.de>
  * @author      Steffen Robertz <steffen.robertz@rwth-aachen.de>
+ * @author      Robert Olsson <roolss@kth.se>
+ *
+ * This is based on  boards_jiminy-mega256rfr2
  */
 
 #ifndef BOARD_H

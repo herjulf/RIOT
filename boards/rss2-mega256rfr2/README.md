@@ -1,4 +1,5 @@
-#Getting Started with RIOT using rss2-mega256rfr2
+Getting Started with RIOT using rss2-mega256rfr2
+================================================
 #Document version
 V1.3 2019-11-01
 

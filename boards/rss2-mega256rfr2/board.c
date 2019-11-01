@@ -8,7 +8,7 @@
  */
 
 /**
- * @ingroup     boards_jiminy-mega256rfr2
+ * @ingroup     boards_rss2-mega256rfr2
  * @{
  *
  * @file
@@ -16,6 +16,9 @@
  *
  * @author      Josua Arndt <jarndt@ias.rwth-aachen.de>
  * @author      Kaspar Schleiser <kaspar@schleiser.de>
+ * @author      Robert Olsson <roolss@kth.se>
+ *
+ * This is based on  boards_jiminy-mega256rfr2
  *
  * @}
  */
