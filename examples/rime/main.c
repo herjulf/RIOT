@@ -44,6 +44,8 @@
 #define DEF_TTL 0xF
 
 struct payload {
+  // uint16_t channel;
+  // unsigned char contiki_rime[2];
   uint8_t head; /* version << 4 + ttl */
   uint8_t seqno;
   unsigned char buf[40];
@@ -104,6 +106,9 @@ void print_report(gnrc_pktsnip_t *pkt)
   p = pkt->data;
   //struct payload *pl =(struct payload *)  &p[0];
   struct payload *pl =(struct payload *)  &p[4];  
+
+  printf("%02x %02x %02x %02x ",(unsigned char *) p[0], (unsigned char *) p[1], (unsigned char *)p[2], (unsigned char *)p[3]);
+  
   printf("&: %s ", &p[6]);
 
   printf(" [ADDR=%-d.%-d SEQ=%-d TTL=%-u RSSI=%-d LQI=%-u]\n", addr[0], addr[1], pl->seqno,
@@ -191,6 +196,7 @@ static int rime_send(gnrc_netif_t *iface, struct payload* payload, int payload_l
     gnrc_netif_hdr_t *hdr;
     gnrc_pktsnip_t *pkt = gnrc_pktbuf_add(NULL, payload, payload_len, GNRC_NETTYPE_UNDEF);
     gnrc_pktsnip_t *netif;
+    uint16_t l2addr[2];
     uint16_t src_len = 2U;
     signed res;
 
@@ -202,13 +208,17 @@ static int rime_send(gnrc_netif_t *iface, struct payload* payload, int payload_l
     res = gnrc_netapi_set(iface->pid, NETOPT_SRC_LEN,0, &src_len, sizeof(src_len));
 
     if(res < 0 )
-      printf("ERR 1\n");
+      printf("ERR SRC_LEN\n");
 
-    res = gnrc_netapi_set(iface->pid, NETOPT_ADDRESS,0, &iface->l2addr, sizeof(src_len));
+    /* Compat w. Contiki/sensd */
+    l2addr[0] = iface->l2addr[7];
+    l2addr[1] = iface->l2addr[6];
+
+    //res = gnrc_netapi_set(iface->pid, NETOPT_ADDRESS,0, &iface->l2addr, sizeof(src_len));
+    res = gnrc_netapi_set(iface->pid, NETOPT_ADDRESS,0, &l2addr, sizeof(src_len));
     
     if(res < 0 )
-      printf("ERR 1\n");
-
+      printf("ERR ADDr\n");
 
     netif = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
     
@@ -224,7 +234,8 @@ static int rime_send(gnrc_netif_t *iface, struct payload* payload, int payload_l
 }
 
 struct broadcast_message {
-  unsigned char contiki_rime[4]; //0 1 2 3 4 
+  uint16_t channel;
+  unsigned char contiki_rime[2];
   uint8_t head; /* version << 4 + ttl */
   uint8_t seqno;
   uint8_t buf[MAX_BCAST_SIZE+20];  /* Check for max payload 20 extra to be able to test */
@@ -267,6 +278,7 @@ void send_sensd_pkt(gnrc_netif_t *iface)
     if( len_exceeded(len)) 
       return;
   }
+  msg.channel = 0x81; /* 129 */
   msg.head = (1<<4); /* Version 1 */
   msg.head |= ttl;
   msg.seqno = seqno++;
