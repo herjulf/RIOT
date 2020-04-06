@@ -43,19 +43,6 @@
 #define COUNT 10
 #define DEF_TTL 0xF
 
-struct payload {
-  uint16_t channel;
-  unsigned char contiki_rime[2];
-  uint8_t head; /* version << 4 + ttl */
-  uint8_t seqno;
-  unsigned char buf[40];
-};
-
-
-struct payload p;
-
-extern kernel_pid_t rime_pid;
-
 uint8_t addr[2];
 uint8_t lqi;
 int16_t rssi;
@@ -66,8 +53,20 @@ uint32_t count;
 #define MAXTXTSIZE 10
 //unsigned char txt [MAXTXTSIZE];
 char *txt = "RIOT";
-uint8_t seqno;
+int8_t seqno;
 #define MAX_BCAST_SIZE 99
+
+struct payload {
+  uint16_t channel;
+  unsigned char dummy[2];
+  uint8_t head; /* version << 4 + ttl */
+  uint8_t seqno;
+  uint8_t buf[MAX_BCAST_SIZE+20];  /* Check for max payload 20 extra to be able to test */
+};
+
+struct payload p;
+
+extern kernel_pid_t rime_pid;
 
 void print_report(gnrc_pktsnip_t *pkt)
 {
@@ -80,7 +79,6 @@ void print_report(gnrc_pktsnip_t *pkt)
     if (hdr->src_l2addr_len == 2) {
       uint8_t *laddr;
 
-      printf("HDR2L\n");
       laddr = gnrc_netif_hdr_get_src_addr(hdr);
       addr[0] = *laddr;
       laddr++;
@@ -88,8 +86,6 @@ void print_report(gnrc_pktsnip_t *pkt)
     }
     if (hdr->src_l2addr_len == 8) {
       uint8_t *laddr;
-
-      printf("HDRL8\n");
 
       laddr = gnrc_netif_hdr_get_src_addr(hdr);
       addr[0] = *laddr;
@@ -105,9 +101,6 @@ void print_report(gnrc_pktsnip_t *pkt)
 
   struct payload *pl =(struct payload *)  &p[0];  
 
-  printf("Channel %d ", pl->channel);
-  printf("Seqno %d ", pl->seqno);
-   
   printf("&: %s ", &pl->buf);
 
   printf(" [ADDR=%-d.%-d SEQ=%-d TTL=%-u RSSI=%-d LQI=%-u]\n", addr[0], addr[1], pl->seqno,
@@ -232,14 +225,6 @@ static int rime_send(gnrc_netif_t *iface, struct payload* payload, int payload_l
     return 1;
 }
 
-struct broadcast_message {
-  uint16_t channel;
-  unsigned char contiki_rime[2];
-  uint8_t head; /* version << 4 + ttl */
-  uint8_t seqno;
-  uint8_t buf[MAX_BCAST_SIZE+20];  /* Check for max payload 20 extra to be able to test */
-};
-
 unsigned char epc[13] = {0x34, 0x32, 0x30, 0x01, 0xD9, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01};
 char *epc_str= "34323001D900000000000001";
 
@@ -256,7 +241,7 @@ int len_exceeded(int len)
 
 void send_sensd_pkt(gnrc_netif_t *iface)
 {
-  struct broadcast_message msg;
+  struct payload msg;
   uint16_t len = 0;
   uint64_t mask;
   uint8_t ttl = DEF_TTL;
@@ -278,10 +263,11 @@ void send_sensd_pkt(gnrc_netif_t *iface)
       return;
   }
   msg.channel = 0x81; /* 129 */
+  msg.dummy[0] = 0xAB;
+  msg.dummy[1] = 0xBA;
   msg.head = (1<<4); /* Version 1 */
   msg.head |= ttl;
   msg.seqno = seqno++;
-  //packetbuf_copyfrom(&msg, sizeof(struct broadcast_message));
   msg.buf[len++] = 0;
   rime_send(iface, &msg, strlen(msg.buf)+7);
 }
