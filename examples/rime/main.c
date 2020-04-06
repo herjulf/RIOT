@@ -44,15 +44,13 @@
 #define DEF_TTL 0xF
 
 struct payload {
-  // uint16_t channel;
-  // unsigned char contiki_rime[2];
+  uint16_t channel;
+  unsigned char contiki_rime[2];
   uint8_t head; /* version << 4 + ttl */
   uint8_t seqno;
   unsigned char buf[40];
-  //unsigned char epc[20];
 };
 
-// &: TXT=TREE ID=28be51ce02000031 PS=1 T=14.25  V_MCU=3.60 UP=1969060 RH=33.6 V_IN=5.61  [ADDR=190.49 SEQ=181 TTL=1
 
 struct payload p;
 
@@ -104,12 +102,13 @@ void print_report(gnrc_pktsnip_t *pkt)
   }
 
   p = pkt->data;
-  //struct payload *pl =(struct payload *)  &p[0];
-  struct payload *pl =(struct payload *)  &p[4];  
 
-  printf("%02x %02x %02x %02x ",(unsigned char *) p[0], (unsigned char *) p[1], (unsigned char *)p[2], (unsigned char *)p[3]);
-  
-  printf("&: %s ", &p[6]);
+  struct payload *pl =(struct payload *)  &p[0];  
+
+  printf("Channel %d ", pl->channel);
+  printf("Seqno %d ", pl->seqno);
+   
+  printf("&: %s ", &pl->buf);
 
   printf(" [ADDR=%-d.%-d SEQ=%-d TTL=%-u RSSI=%-d LQI=%-u]\n", addr[0], addr[1], pl->seqno,
 	 (pl->head & 0x0F), (signed) rssi, (unsigned) lqi);
