@@ -37,11 +37,14 @@
 #define DEF_TTL 0xF
 
 uint8_t addr[2];
+uint8_t l2addr[2];
 uint8_t lqi;
 int16_t rssi;
 uint32_t count;
 #define R_TXT        ((uint64_t) ((uint64_t) 1)<<0)  
 #define R_EPC        ((uint64_t) ((uint64_t) 1)<<1)
+
+char *epc_str= "34323001D900000000000001";
 
 #define MAXTXTSIZE 10
 //unsigned char txt [MAXTXTSIZE];
@@ -58,17 +61,53 @@ struct payload {
 };
 
 struct payload p;
-
 extern kernel_pid_t rime_pid;
 
-void print_report(gnrc_pktsnip_t *pkt)
-{
-  gnrc_netif_hdr_t *hdr;
-  char *p;
+struct {
+  uint16_t sent;
+  uint16_t dup;
+  uint16_t ignored;
+  uint16_t ttl_zero;
+} relay_stats;
 
-  hdr = pkt->data;
+
+#define MAX_NEIGHBORS 64
+#define NEIGHBOR_TIMEOUT 200 * CLOCK_SECOND /* 64000 */
+
+struct neighbor {
+  struct neighbor *next;
+  //linkaddr_t addr;
+  uint8_t last_seqno;
+  /* The ->last_rssi and ->last_lqi fields hold the Received Signal
+     Strength Indicator (RSSI) and CC2420 Link Quality Indicator (LQI)
+     values that are received for the incoming broadcast packets. */
+
+  uint8_t last_rssi;
+  uint8_t last_lqi;
+  uint8_t last_ttl;
+
+  /* Best RSSI and the TTL for this transmisson
+     This in case we use relaying
+   */
+  uint8_t best_rssi;
+  uint8_t best_ttl;
+
+  uint8_t dup;
+  /* The ->avg_gap contains the average seqno gap that we have seen
+     from this neighbor. */
+  uint32_t avg_seqno_gap;
+  //struct ctimer ctimer;
+};
+
+void rx_pkt(gnrc_pktsnip_t *pkt)
+{
+  struct payload *pl;
+
+  int relay = 0;
 
   if( pkt->type == GNRC_NETTYPE_NETIF) {
+    gnrc_netif_hdr_t *hdr = pkt->data;
+
     if (hdr->src_l2addr_len == 2) {
       uint8_t *laddr;
 
@@ -90,9 +129,34 @@ void print_report(gnrc_pktsnip_t *pkt)
     return;
   }
 
-  p = pkt->data;
+  // if( pkt->type == GNRC_NETTYPE_NETIF)
+ 
+  pl =(struct payload *) pkt->data;
+ 
+  if((pl->head >> 4) != 1) {
+    relay = 0;
+    relay_stats.ignored++;
+    return;
+  }
 
-  struct payload *pl =(struct payload *)  &p[0];  
+  if((pl->head & 0xF) == 0) {
+    relay = 0;
+    relay_stats.ttl_zero++;
+    return;
+  }
+
+  #ifdef RELAY
+
+  /* From our own address. Can happen if we receive own pkt via relay
+     Ignore
+  */
+ 
+  if(linkaddr_cmp(&linkaddr_node_addr, from)) {
+    relay = 0;
+    relay_stats.ignored++;
+    return;
+  }
+#endif
 
   printf("&: %s ", &pl->buf);
 
@@ -112,42 +176,24 @@ void rime_msg(gnrc_pktsnip_t *pkt)
 
   pkt = gnrc_pktsnip_search_type(snip, GNRC_NETTYPE_NETIF);
   if(pkt)
-    print_report(pkt);
+    rx_pkt(pkt);
 
   pkt = gnrc_pktsnip_search_type(snip, GNRC_NETTYPE_UNDEF);
   if(pkt)
-    print_report(pkt);
+    rx_pkt(pkt);
   
   gnrc_pktbuf_release(snip);
 }
 
-static int rime_send(gnrc_netif_t *iface, struct payload* payload, int payload_len)
+static int _txt_pkt(gnrc_netif_t *iface, struct payload* payload, int payload_len)
 {
     gnrc_netif_hdr_t *hdr;
     gnrc_pktsnip_t *pkt = gnrc_pktbuf_add(NULL, payload, payload_len, GNRC_NETTYPE_UNDEF);
     gnrc_pktsnip_t *netif;
-    uint16_t l2addr[2];
-    uint16_t src_len = 2U;
     signed res;
-
-    src_len = 8;
 
     if(!pkt) 
       return -1;
-
-    res = gnrc_netapi_set(iface->pid, NETOPT_SRC_LEN,0, &src_len, sizeof(src_len));
-
-    if(res < 0 )
-      printf("ERR SRC_LEN\n");
-
-    /* Compat w. Contiki/sensd */
-    l2addr[0] = iface->l2addr[7];
-    l2addr[1] = iface->l2addr[6];
-
-    res = gnrc_netapi_set(iface->pid, NETOPT_ADDRESS,0, &l2addr, sizeof(src_len));
-    
-    if(res < 0 )
-      printf("ERR ADDr\n");
 
     netif = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
     
@@ -161,8 +207,6 @@ static int rime_send(gnrc_netif_t *iface, struct payload* payload, int payload_l
     return 1;
 }
 
-char *epc_str= "34323001D900000000000001";
-
 int len_exceeded(int len)
 {
   if(len > MAX_BCAST_SIZE) {
@@ -172,7 +216,7 @@ int len_exceeded(int len)
   return 0;
 }
 
-void send_sensd_pkt(gnrc_netif_t *iface)
+void tx_pkt(gnrc_netif_t *iface)
 {
   struct payload msg;
   uint16_t len = 0;
@@ -202,13 +246,17 @@ void send_sensd_pkt(gnrc_netif_t *iface)
   msg.head |= ttl;
   msg.seqno = seqno++;
   msg.buf[len++] = 0;
-  rime_send(iface, &msg, strlen(msg.buf)+7);
+  _txt_pkt(iface, &msg, strlen(msg.buf)+7);
 }
 
 int main(void)
 {
   int res;
-
+  uint16_t src_len;
+  gnrc_netif_t *iface;
+  gnrc_netif_t *netif = NULL;
+  uint16_t pan = 0xabcd;
+  uint16_t chan = 26;
   xtimer_ticks32_t last_wakeup = xtimer_now();
  
 #ifdef MODULE_NETIF
@@ -217,20 +265,55 @@ int main(void)
 #endif
     
   gnrc_pktdump_init();
-  gnrc_netif_t *iface = gnrc_netif_get_by_pid(4);
-
-  uint16_t pan = 0xabcd;
-  res = netif_set_opt(&iface->netif, NETOPT_NID, 0, &pan, sizeof(pan));
-  if(res < 0)
-    printf("Setting PAN failed\n");
-
-  uint16_t chan = 26;
-  res = netif_get_opt(&iface->netif, NETOPT_CHANNEL, 0, &chan, sizeof(chan));
-  if (res < 0)
-    printf("Setting Chan failed\n");
   
-  while(1) {
-    xtimer_periodic_wakeup(&last_wakeup, INTERVAL);
-    send_sensd_pkt(iface);
+  /* Get the 802154 interface */
+  while ((netif = gnrc_netif_iter(netif))) {
+    iface = gnrc_netif_get_by_pid(netif->pid);
+    printf("Interface: pid=%d device_type=%d\n", iface->pid, iface->device_type);
+
+    if(iface->device_type == NETDEV_TYPE_IEEE802154) {
+      break;
+    }
   }
+
+  src_len = 8U; /* To get the correct addr */
+  res = gnrc_netapi_set(iface->pid, NETOPT_SRC_LEN,0, &src_len, sizeof(src_len));
+
+  if(res < 0 )
+    printf("ERR set src_len\n");
+
+  res = gnrc_netapi_get(iface->pid, NETOPT_ADDRESS,0, &l2addr, sizeof(src_len));
+
+  if(res < 0 )
+    printf("ERR get addr\n");
+
+ /* Compat w. Contiki/sensd */
+ l2addr[0] = iface->l2addr[7];
+ l2addr[1] = iface->l2addr[6];
+ printf("Main Short_addr: %-d.%-d\n", l2addr[0], l2addr[1]);
+
+ src_len = 2U; /* To get the correct addr */
+ res = gnrc_netapi_set(iface->pid, NETOPT_SRC_LEN,0, &src_len, sizeof(src_len));
+ 
+ if(res < 0 )
+   printf("ERR set src_len\n");
+
+ res = gnrc_netapi_set(iface->pid, NETOPT_ADDRESS,0, &l2addr, sizeof(src_len));
+
+  if(res < 0 )
+    printf("ERR set addr\n");
+
+ 
+ res = netif_set_opt(&iface->netif, NETOPT_NID, 0, &pan, sizeof(pan));
+ if(res < 0)
+   printf("Setting PAN failed\n");
+
+ res = netif_get_opt(&iface->netif, NETOPT_CHANNEL, 0, &chan, sizeof(chan));
+ if (res < 0)
+   printf("Setting Chan failed\n");
+ 
+ while(1) {
+   xtimer_periodic_wakeup(&last_wakeup, INTERVAL);
+   tx_pkt(iface);
+ }
 }
