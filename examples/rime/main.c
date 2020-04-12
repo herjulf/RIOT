@@ -11,7 +11,7 @@
  * @{
  *
  * @file
- * @brief       rime application
+ * @brief       WSSN application
  *
  * @author      Robert Olsson <roolss@kth.se>
  *
@@ -99,7 +99,16 @@ struct neighbor {
   //struct ctimer ctimer;
 };
 
-void rx_pkt(gnrc_pktsnip_t *pkt)
+int addr_cmp(uint8_t *a, uint8_t *b)
+{
+
+  if((a[0] == b[0]) && (a[1] == b[1]))
+    return 1;
+  else
+    return 0;
+}
+
+int rx_pkt(gnrc_pktsnip_t *pkt)
 {
   struct payload *pl;
 
@@ -126,40 +135,40 @@ void rx_pkt(gnrc_pktsnip_t *pkt)
     }
     lqi = hdr->lqi;
     rssi = hdr->rssi;
-    return;
+    return 0;
   }
 
-  // if( pkt->type == GNRC_NETTYPE_NETIF)
- 
+  /* Parse payload */
+  
+  if( pkt->type != GNRC_NETTYPE_UNDEF)
+    return -1;
+  
   pl =(struct payload *) pkt->data;
  
   if((pl->head >> 4) != 1) {
     relay = 0;
     relay_stats.ignored++;
-    return;
+    return -1;
   }
 
   if((pl->head & 0xF) == 0) {
     relay = 0;
     relay_stats.ttl_zero++;
-    return;
+    return -1;
   }
-
-  #ifdef RELAY
 
   /* From our own address. Can happen if we receive own pkt via relay
      Ignore
   */
- 
-  if(linkaddr_cmp(&linkaddr_node_addr, from)) {
+
+  if(addr_cmp(l2addr, addr)) {
     relay = 0;
     relay_stats.ignored++;
-    return;
+    printf("SAME\n");
+    //return;
   }
-#endif
 
   printf("&: %s ", &pl->buf);
-
   printf(" [ADDR=%-d.%-d SEQ=%-d TTL=%-u RSSI=%-d LQI=%-u]\n", addr[0], addr[1], pl->seqno,
 	 (pl->head & 0x0F), (signed) rssi, (unsigned) lqi);
   
@@ -185,28 +194,6 @@ void rime_msg(gnrc_pktsnip_t *pkt)
   gnrc_pktbuf_release(snip);
 }
 
-static int _txt_pkt(gnrc_netif_t *iface, struct payload* payload, int payload_len)
-{
-    gnrc_netif_hdr_t *hdr;
-    gnrc_pktsnip_t *pkt = gnrc_pktbuf_add(NULL, payload, payload_len, GNRC_NETTYPE_UNDEF);
-    gnrc_pktsnip_t *netif;
-    signed res;
-
-    if(!pkt) 
-      return -1;
-
-    netif = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
-    
-    if(!netif)
-      return -1;
-
-    hdr = netif->data;
-    hdr->flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
-    LL_PREPEND(pkt, netif);
-    gnrc_netif_send(iface, pkt);
-    return 1;
-}
-
 int len_exceeded(int len)
 {
   if(len > MAX_BCAST_SIZE) {
@@ -216,44 +203,66 @@ int len_exceeded(int len)
   return 0;
 }
 
-void tx_pkt(gnrc_netif_t *iface)
+int tx_pkt(gnrc_netif_t *iface)
 {
-  struct payload msg;
+  gnrc_pktsnip_t *pkt;
+  struct payload pl;
   uint16_t len = 0;
   uint64_t mask;
   uint8_t ttl = DEF_TTL;
+  gnrc_netif_hdr_t *hdr;
+  gnrc_pktsnip_t *netif;
+  size_t payload_len;
   
   mask = (R_TXT|R_EPC); /* For test */
 
   if(mask & R_TXT) {
-    len += snprintf((char *) &msg.buf[len], sizeof(msg.buf), 
+    len += snprintf((char *) &pl.buf[len], sizeof(pl.buf), 
 		    "TXT=%s ", txt);
     
     if( len_exceeded(len)) 
-      return;
+      return -1;
   }
   if(mask & R_EPC) {
-    len += snprintf((char *) &msg.buf[len], sizeof(msg.buf), 
+    len += snprintf((char *) &pl.buf[len], sizeof(pl.buf), 
 		    "EPC=%s ", epc_str);
     
     if( len_exceeded(len)) 
-      return;
+      return -1;
   }
-  msg.channel = 0x81; /* 129 for Contiki */
-  msg.dummy[0] = 0xAB;
-  msg.dummy[1] = 0xBA;
-  msg.head = (1<<4); /* Version 1 for sensd */
-  msg.head |= ttl;
-  msg.seqno = seqno++;
-  msg.buf[len++] = 0;
-  _txt_pkt(iface, &msg, strlen(msg.buf)+7);
+
+  pl.channel = 0x81; /* 129 for Contiki */
+  pl.dummy[0] = 0xAB;
+  pl.dummy[1] = 0xBA;
+  pl.head = (1<<4); /* Version 1 for sensd */
+  pl.head |= ttl;
+  pl.seqno = seqno++;
+  pl.buf[len++] = 0;
+
+  payload_len = strlen((char *) pl.buf)+7;
+
+  pkt = gnrc_pktbuf_add(NULL, &pl, payload_len, GNRC_NETTYPE_UNDEF);
+    
+  if(!pkt) 
+    return -1;
+    
+  netif = gnrc_netif_hdr_build(NULL, 0, NULL, 0);
+    
+  if(!netif)
+    return -1;
+    
+  hdr = netif->data;
+  hdr->flags |= GNRC_NETIF_HDR_FLAGS_BROADCAST;
+  LL_PREPEND(pkt, netif);
+  gnrc_netif_send(iface, pkt);
+  return 1;
 }
 
 int main(void)
 {
   int res;
   uint16_t src_len;
-  gnrc_netif_t *iface;
+  gnrc_netif_t *iface = NULL;
   gnrc_netif_t *netif = NULL;
   uint16_t pan = 0xabcd;
   uint16_t chan = 26;
@@ -263,7 +272,7 @@ int main(void)
   gnrc_netreg_entry_t dump = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL, rime_pid);
   gnrc_netreg_register(GNRC_NETTYPE_UNDEF, &dump);
 #endif
-    
+  
   gnrc_pktdump_init();
   
   /* Get the 802154 interface */
@@ -276,44 +285,46 @@ int main(void)
     }
   }
 
+  if(!iface)
+    return -1;
+  
   src_len = 8U; /* To get the correct addr */
   res = gnrc_netapi_set(iface->pid, NETOPT_SRC_LEN,0, &src_len, sizeof(src_len));
 
   if(res < 0 )
     printf("ERR set src_len\n");
-
+  
   res = gnrc_netapi_get(iface->pid, NETOPT_ADDRESS,0, &l2addr, sizeof(src_len));
-
+  
   if(res < 0 )
     printf("ERR get addr\n");
 
- /* Compat w. Contiki/sensd */
- l2addr[0] = iface->l2addr[7];
- l2addr[1] = iface->l2addr[6];
- printf("Main Short_addr: %-d.%-d\n", l2addr[0], l2addr[1]);
-
- src_len = 2U; /* To get the correct addr */
- res = gnrc_netapi_set(iface->pid, NETOPT_SRC_LEN,0, &src_len, sizeof(src_len));
- 
- if(res < 0 )
+  /* Compat w. Contiki/sensd */
+  l2addr[0] = iface->l2addr[7];
+  l2addr[1] = iface->l2addr[6];
+  printf("Main Short_addr: %-d.%-d\n", l2addr[0], l2addr[1]);
+  
+  src_len = 2U; /* To get the correct addr */
+  res = gnrc_netapi_set(iface->pid, NETOPT_SRC_LEN,0, &src_len, sizeof(src_len));
+  
+  if(res < 0 )
    printf("ERR set src_len\n");
-
- res = gnrc_netapi_set(iface->pid, NETOPT_ADDRESS,0, &l2addr, sizeof(src_len));
-
+  
+  res = gnrc_netapi_set(iface->pid, NETOPT_ADDRESS,0, &l2addr, sizeof(src_len));
+ 
   if(res < 0 )
     printf("ERR set addr\n");
-
  
- res = netif_set_opt(&iface->netif, NETOPT_NID, 0, &pan, sizeof(pan));
- if(res < 0)
-   printf("Setting PAN failed\n");
-
- res = netif_get_opt(&iface->netif, NETOPT_CHANNEL, 0, &chan, sizeof(chan));
- if (res < 0)
-   printf("Setting Chan failed\n");
- 
- while(1) {
-   xtimer_periodic_wakeup(&last_wakeup, INTERVAL);
-   tx_pkt(iface);
- }
+  res = netif_set_opt(&iface->netif, NETOPT_NID, 0, &pan, sizeof(pan));
+  if(res < 0)
+    printf("Setting PAN failed\n");
+  
+  res = netif_get_opt(&iface->netif, NETOPT_CHANNEL, 0, &chan, sizeof(chan));
+  if (res < 0)
+    printf("Setting Chan failed\n");
+  
+  while(1) {
+    xtimer_periodic_wakeup(&last_wakeup, INTERVAL);
+    tx_pkt(iface);
+  }
 }
