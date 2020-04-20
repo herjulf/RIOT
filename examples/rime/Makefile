@@ -28,9 +28,9 @@ DEVELHELP ?= 1
 QUIET ?= 1
 
 # Modules to include:
-USEMODULE += shell
-USEMODULE += shell_commands
-USEMODULE += ps
+#USEMODULE += shell
+#USEMODULE += shell_commands
+#USEMODULE += ps
 # include and auto-initialize all available sensors
 
 BOARD_PROVIDES_NETIF := acd52832 airfy-beacon atmega256rfr2-xpro avr-rss2 b-l072z-lrwan1 cc2538dk fox \
