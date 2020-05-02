@@ -9,7 +9,7 @@
 #   Moving 'CPU/CPU_MODEL' to Makefile.features is an ongoing work and may not
 #   reflect the state of all boards for the moment.
 
-include $(BOARDSDIR)/$(BOARD)/Makefile.features
+include $(BOARDDIR)/Makefile.features
 
 # Sanity check
 ifeq (,$(CPU))
@@ -17,3 +17,6 @@ ifeq (,$(CPU))
 endif
 
 include $(RIOTCPU)/$(CPU)/Makefile.features
+
+# Provide CPU as a feature to allow listing all boards with a CPU
+FEATURES_PROVIDED += cpu_$(CPU)

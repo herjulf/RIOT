@@ -176,9 +176,10 @@ static char *_consume_path(uri_parser_result_t *result, char *uri,
 static int _parse_relative(uri_parser_result_t *result, char *uri,
                            char *uri_end)
 {
-    /* we expect '\0', i.e., end of string */
     uri = _consume_path(result, uri, uri_end);
-    if (uri[0] != '\0') {
+    /* uri should point to uri_end, otherwise there's something left
+     * to consume ... */
+    if (uri != uri_end) {
         return -1;
     }
 
@@ -217,6 +218,17 @@ bool uri_parser_is_absolute(const char *uri, size_t uri_len)
               ((uri[0] >= 'a') && (uri[0] <= 'z')))) {
             /* relative */
             return false;
+        }
+        for (int i = 0; &uri[i] < colon; ++i) {
+            if (!(((uri[i] >= 'A') && (uri[i] <= 'Z')) ||
+                  ((uri[i] >= 'a') && (uri[i] <= 'z')) ||
+                  ((uri[i] >= '0') && (uri[i] <= '9')) ||
+                  (uri[i] == '+') ||
+                  (uri[i] == '-') ||
+                  (uri[i] == '.'))) {
+                /* relative */
+                return false;
+            }
         }
 
         /* absolute */

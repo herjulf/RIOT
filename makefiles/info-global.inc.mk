@@ -11,7 +11,7 @@ include $(RIOTMAKE)/defaultmodules.inc.mk
 USEMODULE += $(filter-out $(DISABLE_MODULE),$(DEFAULT_MODULE))
 include $(RIOTMAKE)/dependency_resolution.inc.mk
 
-BOARDSDIR_GLOBAL := $(BOARDSDIR)
+BOARDDIR_GLOBAL := $(BOARDDIR)
 USEMODULE_GLOBAL := $(USEMODULE)
 USEPKG_GLOBAL := $(USEPKG)
 FEATURES_REQUIRED_GLOBAL := $(FEATURES_REQUIRED)
@@ -24,7 +24,6 @@ FEATURES_BLACKLIST_GLOBAL := $(FEATURES_BLACKLIST)
 
 define board_unsatisfied_features
   BOARD             := $(1)
-  BOARDSDIR         := $(BOARDSDIR_GLOBAL)
   USEMODULE         := $(USEMODULE_GLOBAL)
   USEPKG            := $(USEPKG_GLOBAL)
   DISABLE_MODULE    := $(DISABLE_MODULE_GLOBAL)
@@ -35,6 +34,9 @@ define board_unsatisfied_features
   FEATURES_CONFLICT_MSG := $(FEATURES_CONFLICT_MSG_GLOBAL)
   FEATURES_BLACKLIST:= $(FEATURES_BLACKLIST_GLOBAL)
 
+  # Find matching board folder
+  BOARDDIR := $(word 1,$(foreach dir,$(BOARDSDIRS),$(wildcard $(dir)/$(BOARD)/.)))
+
   # Remove board specific variables set by Makefile.features/Makefile.dep
   FEATURES_PROVIDED :=
   FEATURES_USED :=
@@ -43,12 +45,8 @@ define board_unsatisfied_features
   # Some are sometime set as `?=`
   undefine CPU
   undefine CPU_MODEL
-
-  # Replicate Makefile.include handling that sets BOARDSDIR to RIOTBOARD
-  # when BOARD is not found in BOARDSDIR
-  ifeq (,$(wildcard $(BOARDSDIR_GLOBAL)/$(BOARD)/.))
-    BOARDSDIR = $(RIOTBOARD)
-  endif
+  undefine CPU_ARCH
+  undefine CPU_FAM
 
   include $(RIOTBASE)/Makefile.features
   # FEATURES_USED must be populated first in this case so that dependency
@@ -130,4 +128,4 @@ info-boards-features-missing:
 
 # Reset BOARDSDIR so unchanged for makefiles included after, for now only
 # needed for buildtests.inc.mk
-BOARDSDIR := $(BOARDSDIR_GLOBAL)
+BOARDDIR := $(BOARDDIR_GLOBAL)

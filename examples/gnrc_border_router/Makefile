@@ -66,7 +66,14 @@ QUIET ?= 1
 
 # Ethos/native TAP interface and UHCP prefix can be configured from make command
 TAP ?= tap0
-IPV6_PREFIX ?= 2001:db8::/64
+ifeq (1,$(USE_DHCPV6))
+  # with DHCPv6 the 64-bit delegated prefixes are generated from a shorter
+  # configured prefix.
+  IPV6_PREFIX ?= 2001:db8::/32
+else
+  # UHCP advertises the prefix as is.
+  IPV6_PREFIX ?= 2001:db8::/64
+endif
 
 # MODULE DEPENDENT CONFIGURATION IMPORT
 # =====================================
@@ -87,6 +94,8 @@ ifeq (,$(filter native,$(BOARD)))
     include $(CURDIR)/Makefile.wifi.conf
   endif
 else
+  # The number of native (emulated) ZigBee/6LoWPAN devices
+  ZEP_DEVICES ?= 1
   include $(CURDIR)/Makefile.native.conf
 endif
 
