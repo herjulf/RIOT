@@ -108,11 +108,11 @@ int addr_cmp(uint8_t *a, uint8_t *b)
     return 0;
 }
 
+int relay = 0;
+
 int rx_pkt(gnrc_pktsnip_t *pkt)
 {
   struct payload *pl;
-
-  int relay = 0;
 
   if( pkt->type == GNRC_NETTYPE_NETIF) {
     gnrc_netif_hdr_t *hdr = pkt->data;
@@ -177,6 +177,7 @@ int rx_pkt(gnrc_pktsnip_t *pkt)
 	     p->addr[0], p->addr[1], p->seqno, p->ttl, p->rssi, p->lqi,  p->drp[0], p->drp[1], 
 	     (uptime - p->time));
 #endif
+      return 0;
 }
 
 void rime_msg(gnrc_pktsnip_t *pkt)
