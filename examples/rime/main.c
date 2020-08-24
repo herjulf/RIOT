@@ -57,6 +57,8 @@ char *txt = "RIOT";
 int8_t seqno;
 #define MAX_BCAST_SIZE 99
 
+int tx_pkt(gnrc_netif_t *iface);
+
 struct payload {
   uint16_t channel;
   unsigned char dummy[2];
@@ -103,10 +105,14 @@ struct neighbor {
   //struct ctimer ctimer;
 };
 
-static char rime_stack[THREAD_STACKSIZE_MAIN];
-
 static int cmd_tx(int argc, char **argv)
 {
+
+  if (argc > 2) {
+    printf("%s: just tx \n", argv[0]);
+    return 1;
+  }
+  
   tx_pkt(iface);
   return 0;
 }
@@ -283,7 +289,7 @@ int main(void)
   gnrc_netif_t *netif = NULL;
   uint16_t pan = 0xabcd;
   uint16_t chan = 26;
-  xtimer_ticks32_t last_wakeup = xtimer_now();
+  //xtimer_ticks32_t last_wakeup = xtimer_now();
  
 #ifdef MODULE_NETIF
   gnrc_netreg_entry_t dump = GNRC_NETREG_ENTRY_INIT_PID(GNRC_NETREG_DEMUX_CTX_ALL, rime_pid);
