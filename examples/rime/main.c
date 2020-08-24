@@ -23,28 +23,33 @@
 #include "thread.h"
 #include "xtimer.h"
 #include "timex.h"
+#include "shell.h"
 
 #ifdef MODULE_NETIF
 #include "net/gnrc/pktdump.h"
 #include "net/gnrc.h"
 #endif
 
+#ifndef SHELL_BUFSIZE
+#define SHELL_BUFSIZE       (128U)
+#endif
+
 #define SENSD_TAG   "&:  "
 
 /* set interval to 10 second */
 #define INTERVAL (30U * US_PER_SEC)
-#define COUNT 10
 #define DEF_TTL 0xF
 
 uint8_t addr[2];
 uint8_t l2addr[2];
 uint8_t lqi;
 int16_t rssi;
-uint32_t count;
 #define R_TXT        ((uint64_t) ((uint64_t) 1)<<0)  
 #define R_EPC        ((uint64_t) ((uint64_t) 1)<<1)
 
 char *epc_str= "34323001D900000000000001";
+
+gnrc_netif_t *iface = NULL;
 
 #define MAXTXTSIZE 10
 //unsigned char txt [MAXTXTSIZE];
@@ -69,7 +74,6 @@ struct {
   uint16_t ignored;
   uint16_t ttl_zero;
 } relay_stats;
-
 
 #define MAX_NEIGHBORS 64
 #define NEIGHBOR_TIMEOUT 200 * CLOCK_SECOND /* 64000 */
@@ -97,6 +101,19 @@ struct neighbor {
      from this neighbor. */
   uint32_t avg_seqno_gap;
   //struct ctimer ctimer;
+};
+
+static char rime_stack[THREAD_STACKSIZE_MAIN];
+
+static int cmd_tx(int argc, char **argv)
+{
+  tx_pkt(iface);
+  return 0;
+}
+
+static const shell_command_t shell_commands[] = {
+  { "tx", "tx RIME pkt", cmd_tx },
+  { NULL, NULL, NULL }
 };
 
 int addr_cmp(uint8_t *a, uint8_t *b)
@@ -263,7 +280,6 @@ int main(void)
 {
   int res;
   uint16_t src_len;
-  gnrc_netif_t *iface = NULL;
   gnrc_netif_t *netif = NULL;
   uint16_t pan = 0xabcd;
   uint16_t chan = 26;
@@ -324,8 +340,7 @@ int main(void)
   if (res < 0)
     printf("Setting Chan failed\n");
   
-  while(1) {
-    xtimer_periodic_wakeup(&last_wakeup, INTERVAL);
-    tx_pkt(iface);
-  }
+  char line_buf[SHELL_BUFSIZE];
+  shell_run(shell_commands, line_buf, SHELL_BUFSIZE);
+
 }
