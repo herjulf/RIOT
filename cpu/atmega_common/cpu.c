@@ -33,7 +33,7 @@
 #include "periph/init.h"
 #include "panic.h"
 
-#define ENABLE_DEBUG (0)
+#define ENABLE_DEBUG (1)
 #include "debug.h"
 
 #ifndef MCUSR
@@ -66,7 +66,12 @@ void get_mcusr(void)
     __asm__ __volatile__("mov %0, r3\n" : "=r" (soft_rst) :);
 #ifdef BOOTLOADER_CLEARS_WATCHDOG_AND_PASSES_MCUSR
     /* save the reset flags passed from the bootloader */
-    __asm__ __volatile__("mov %0, r2\n" : "=r" (mcusr_mirror) :);
+#ifdef  BOARD_AVR_RSS2
+    mcusr_mirror = GPIOR0;
+#else
+    __asm__ __volatile__("mov %0, r0\n" : "=r" (mcusr_mirror) :);
+#endif
+
 #else
     /* save the reset flags */
     mcusr_mirror = MCUSR;
@@ -102,8 +107,6 @@ void _reset_cause(void)
 
 void cpu_init(void)
 {
-    _reset_cause();
-
     wdt_reset();   /* should not be nececessary as done in bootloader */
     wdt_disable(); /* but when used without bootloader this is needed */
 
@@ -116,6 +119,7 @@ void cpu_init(void)
     /* rtc_init */
     /* hwrng_init */
     periph_init();
+    _reset_cause();
 }
 
 struct __freelist {
